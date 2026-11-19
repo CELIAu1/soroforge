@@ -21,20 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testHTTPClient is a no-op HTTP client used in unit tests.
-type testHTTPClient struct {
-	body   string
-	status int
-}
-
-func (c *testHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	return &http.Response{
-		StatusCode: c.status,
-		Body:       io.NopCloser(bytes.NewReader([]byte(c.body))),
-		Header:     http.Header{},
-	}, nil
-}
-
 func TestDeployNotifiesWebhookWithSignature(t *testing.T) {
 	var (
 		mu       sync.Mutex
