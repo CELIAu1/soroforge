@@ -55,6 +55,21 @@ func TestRedactURL(t *testing.T) {
 			want: "exa mple.org/rpc",
 		},
 		{
+			name: "fragment is removed along with userinfo",
+			in:   "https://user:hunter2@soroban.example.com/rpc#token=abc",
+			want: "https://soroban.example.com/rpc",
+		},
+		{
+			name: "username-only token with IPv6 host and port keeps the brackets",
+			in:   "https://sk-live-999@[::1]:8000/rpc?token=abc",
+			want: "https://[::1]:8000/rpc",
+		},
+		{
+			name: "at sign inside a query value does not swallow the host",
+			in:   "https://rpc.example.com/v2?token=abc@evil.example",
+			want: "https://rpc.example.com/v2",
+		},
+		{
 			name: "localhost without scheme is untouched when it holds no secrets",
 			in:   "localhost:8000/soroban/rpc",
 			want: "localhost:8000/soroban/rpc",
