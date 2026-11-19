@@ -509,7 +509,7 @@ func scanSQLiteDeployment(s rowScanner) (Deployment, error) {
 		d.TxHash = txHash.String
 	}
 	if ledger.Valid {
-		d.Ledger = uint32(ledger.Int64)
+		d.Ledger = uint32(ledger.Int64) //nolint:gosec // G115: the column is only ever written from a uint32 ledger
 	}
 	if notes.Valid {
 		d.Notes = notes.String

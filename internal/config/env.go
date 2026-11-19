@@ -45,7 +45,7 @@ const (
 	// encrypt`). It applies to the primary keystore and to every encrypted
 	// co-signer keystore. When it is unset and stdin is a terminal, SoroForge
 	// prompts for the passphrase without echo instead.
-	EnvKeystorePassphrase = "SOROFORGE_KEYSTORE_PASSPHRASE"
+	EnvKeystorePassphrase = "SOROFORGE_KEYSTORE_PASSPHRASE" //nolint:gosec // G101: an environment variable name, not a credential
 
 	// EnvSignerCommand names an executable that signs a transaction hash for
 	// keys SoroForge cannot read, such as HSM- or KMS-backed keys. It is
@@ -70,7 +70,7 @@ const (
 	// EnvAPIToken is the original bearer token for the HTTP API. It grants
 	// read and write, so existing single-token deployments keep working. The
 	// server refuses to start when it and EnvAPITokens are both unset.
-	EnvAPIToken = "SOROFORGE_API_TOKEN"
+	EnvAPIToken = "SOROFORGE_API_TOKEN" //nolint:gosec // G101: an environment variable name, not a credential
 
 	// EnvAPITokens configures scoped bearer tokens as a comma-separated list
 	// of name:scope:token entries, where scope is "read" or "write" (write
@@ -78,7 +78,7 @@ const (
 	// the mutating ones. Example:
 	//
 	//	SOROFORGE_API_TOKENS="dashboard:read:$DASHBOARD_TOKEN,ci:write:$CI_TOKEN"
-	EnvAPITokens = "SOROFORGE_API_TOKENS"
+	EnvAPITokens = "SOROFORGE_API_TOKENS" //nolint:gosec // G101: an environment variable name, not a credential
 
 	// EnvAPIAddr overrides the HTTP API listen address.
 	EnvAPIAddr = "SOROFORGE_API_ADDR"
@@ -438,7 +438,7 @@ func (e Env) CosignerSeeds() (seeds []string, sources []string, err error) {
 // "co-signer keystore"); errors name the path, never the contents or the
 // passphrase.
 func (e Env) readKeystore(path, kind string) (string, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: keystore path is the operator's own configuration
 	if err != nil {
 		return "", fmt.Errorf("read %s %s: %w", kind, path, err)
 	}

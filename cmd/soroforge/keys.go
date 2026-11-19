@@ -19,7 +19,7 @@ import (
 // without echoing it. It is a variable so tests can substitute input.
 var readPassphrase = func(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
-	b, err := term.ReadPassword(int(os.Stdin.Fd())) //nolint:gosec // Fd fits in int on every supported platform
+	b, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr)
 	if err != nil {
 		return "", err
@@ -32,7 +32,7 @@ var readPassphrase = func(prompt string) (string, error) {
 // /dev/null is one too and reading a passphrase from it fails. A variable for
 // the same reason as readPassphrase.
 var passphraseIsTerminal = func() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) //nolint:gosec // Fd fits in int on every supported platform
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 func newKeysCmd() *cobra.Command {
@@ -72,7 +72,7 @@ wherever SOROFORGE_KEYSTORE_PATH or SOROFORGE_COSIGNER_KEYSTORES is read.`,
 // or back to path when output is empty. Neither the seed nor the passphrase
 // appears in any message.
 func encryptKeystore(w io.Writer, env config.Env, path, output string) error {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: the operator names the keystore on the command line
 	if err != nil {
 		return fmt.Errorf("read keystore %s: %w", path, err)
 	}

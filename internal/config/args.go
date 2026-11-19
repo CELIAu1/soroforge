@@ -184,7 +184,7 @@ func encodeU32(a Arg) (xdr.ScVal, error) {
 	if err != nil {
 		return xdr.ScVal{}, err
 	}
-	v := xdr.Uint32(n)
+	v := xdr.Uint32(n) //nolint:gosec // G115: asUint(32) has already range-checked n
 	return xdr.ScVal{Type: xdr.ScValTypeScvU32, U32: &v}, nil
 }
 
@@ -193,7 +193,7 @@ func encodeI32(a Arg) (xdr.ScVal, error) {
 	if err != nil {
 		return xdr.ScVal{}, err
 	}
-	v := xdr.Int32(n)
+	v := xdr.Int32(n) //nolint:gosec // G115: asInt(32) has already range-checked n
 	return xdr.ScVal{Type: xdr.ScValTypeScvI32, I32: &v}, nil
 }
 
@@ -479,7 +479,7 @@ func ParseArgsJSON(raw []byte) ([]Arg, error) {
 // working directory, not the config file, because the user named it on the
 // command line.
 func ParseArgsFile(path string) ([]Arg, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: the operator names the args file on the command line
 	if err != nil {
 		return nil, fmt.Errorf("read args file %s: %w", path, err)
 	}

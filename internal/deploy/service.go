@@ -745,7 +745,7 @@ func submissionRetryDelay(attempt int) time.Duration {
 		}
 	}
 	half := delay / 2
-	return half + time.Duration(rand.Int63n(int64(delay)))
+	return half + time.Duration(rand.Int63n(int64(delay))) //nolint:gosec // G404: retry jitter, not security-sensitive
 }
 
 func waitForRetry(ctx context.Context, delay time.Duration) error {
