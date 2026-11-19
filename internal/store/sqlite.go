@@ -641,7 +641,7 @@ func (s *SQLite) RenameContract(ctx context.Context, network, oldAlias, newAlias
 	// Check if new alias already exists.
 	var exists int
 	err = tx.QueryRowContext(ctx, `SELECT 1 FROM contracts WHERE network = ? AND alias = ?`, network, newAlias).Scan(&exists)
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		if err != nil {
 			return fmt.Errorf("rename contract: check new alias exists: %w", err)
 		}

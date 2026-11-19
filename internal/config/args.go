@@ -111,7 +111,7 @@ var argTypeRegistry []argTypeEntry
 // package variables are set, so the registration order is still deterministic
 // and the cycle cannot form.
 func init() {
-	for _, entry := range []argTypeEntry{
+	argTypeRegistry = append(argTypeRegistry, []argTypeEntry{
 		{ArgBool, encodeBool},
 		{ArgVoid, encodeVoid},
 		{ArgU32, encodeU32},
@@ -132,9 +132,7 @@ func init() {
 		{ArgVec, encodeVec},
 		{ArgMap, encodeMap},
 		{ArgXDR, encodeXDR},
-	} {
-		argTypeRegistry = append(argTypeRegistry, entry)
-	}
+	}...)
 	for _, entry := range argTypeRegistry {
 		SupportedArgTypes = append(SupportedArgTypes, entry.name)
 	}
