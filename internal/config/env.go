@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/soroworks/soroforge/internal/keyseal"
 )
 
 // Environment variables recognised by SoroForge.
@@ -38,6 +40,12 @@ const (
 	// cannot change, such as some container secret mounts. Set it to 1 (or
 	// true) deliberately; the default is to refuse.
 	EnvAllowInsecureKeystore = "SOROFORGE_ALLOW_INSECURE_KEYSTORE"
+
+	// EnvKeystorePassphrase unlocks encrypted keystores (see `soroforge keys
+	// encrypt`). It applies to the primary keystore and to every encrypted
+	// co-signer keystore. When it is unset and stdin is a terminal, SoroForge
+	// prompts for the passphrase without echo instead.
+	EnvKeystorePassphrase = "SOROFORGE_KEYSTORE_PASSPHRASE"
 
 	// EnvSignerCommand names an executable that signs a transaction hash for
 	// keys SoroForge cannot read, such as HSM- or KMS-backed keys. It is
@@ -158,6 +166,15 @@ type Env struct {
 	// AllowInsecureKeystore accepts a keystore readable by group or others.
 	// See EnvAllowInsecureKeystore.
 	AllowInsecureKeystore bool
+	// KeystorePassphrase is EnvKeystorePassphrase, verbatim: leading and
+	// trailing spaces can be part of a passphrase, so it is not trimmed.
+	KeystorePassphrase string
+	// PromptPassphrase, when set, is asked for the passphrase of an
+	// encrypted keystore that KeystorePassphrase does not cover. The CLI
+	// sets it to a no-echo terminal prompt when stdin is a terminal; it is
+	// nil everywhere else, so a server or CI job fails clearly instead of
+	// blocking on input.
+	PromptPassphrase func(path string) (string, error)
 }
 
 // LoadEnv reads SoroForge's environment variables. It does not validate them:
@@ -184,6 +201,7 @@ func LoadEnv() Env {
 		APIMetrics:            strings.TrimSpace(os.Getenv(EnvAPIMetrics)),
 		TLSCert:               strings.TrimSpace(os.Getenv(EnvTLSCert)),
 		TLSKey:                strings.TrimSpace(os.Getenv(EnvTLSKey)),
+		KeystorePassphrase:    os.Getenv(EnvKeystorePassphrase),
 	}
 }
 
@@ -379,15 +397,9 @@ func (e Env) SigningSeed() (seed string, source string, err error) {
 			return "", "", err
 		}
 
-		raw, err := os.ReadFile(e.KeystorePath)
+		seed, err := e.readKeystore(e.KeystorePath, "keystore")
 		if err != nil {
-			return "", "", fmt.Errorf("read keystore %s: %w", e.KeystorePath, err)
-		}
-		// Trim so a trailing newline from `echo S... > keystore` is tolerated;
-		// a stray newline in a seed is a confusing failure to debug.
-		seed := strings.TrimSpace(string(raw))
-		if seed == "" {
-			return "", "", fmt.Errorf("keystore %s is empty", e.KeystorePath)
+			return "", "", err
 		}
 		return seed, "keystore:" + e.KeystorePath, nil
 	}
@@ -411,18 +423,66 @@ func (e Env) CosignerSeeds() (seeds []string, sources []string, err error) {
 		if err := checkKeystorePermissions(path, e.AllowInsecureKeystore); err != nil {
 			return nil, nil, err
 		}
-		raw, err := os.ReadFile(path)
+		seed, err := e.readKeystore(path, "co-signer keystore")
 		if err != nil {
-			return nil, nil, fmt.Errorf("read co-signer keystore %s: %w", path, err)
-		}
-		seed := strings.TrimSpace(string(raw))
-		if seed == "" {
-			return nil, nil, fmt.Errorf("co-signer keystore %s is empty", path)
+			return nil, nil, err
 		}
 		seeds = append(seeds, seed)
 		sources = append(sources, "keystore:"+path)
 	}
 	return seeds, sources, nil
+}
+
+// readKeystore returns the seed in a keystore file, decrypting it first when
+// it is an encrypted keystore. kind names the file in errors ("keystore",
+// "co-signer keystore"); errors name the path, never the contents or the
+// passphrase.
+func (e Env) readKeystore(path, kind string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read %s %s: %w", kind, path, err)
+	}
+
+	if keyseal.IsEncrypted(raw) {
+		passphrase, err := e.keystorePassphrase(path, kind)
+		if err != nil {
+			return "", err
+		}
+		plain, err := keyseal.Decrypt(raw, []byte(passphrase))
+		if err != nil {
+			return "", fmt.Errorf("decrypt %s %s: %w", kind, path, err)
+		}
+		raw = plain
+	}
+
+	// Trim so a trailing newline from `echo S... > keystore` is tolerated;
+	// a stray newline in a seed is a confusing failure to debug.
+	seed := strings.TrimSpace(string(raw))
+	if seed == "" {
+		return "", fmt.Errorf("%s %s is empty", kind, path)
+	}
+	return seed, nil
+}
+
+// keystorePassphrase returns the passphrase for an encrypted keystore: the
+// environment variable if set, otherwise whatever PromptPassphrase returns.
+func (e Env) keystorePassphrase(path, kind string) (string, error) {
+	if e.KeystorePassphrase != "" {
+		return e.KeystorePassphrase, nil
+	}
+	if e.PromptPassphrase == nil {
+		return "", fmt.Errorf(
+			"%s %s is encrypted: set %s, or run on a terminal to be prompted for the passphrase",
+			kind, path, EnvKeystorePassphrase)
+	}
+	passphrase, err := e.PromptPassphrase(path)
+	if err != nil {
+		return "", fmt.Errorf("read passphrase for %s %s: %w", kind, path, err)
+	}
+	if passphrase == "" {
+		return "", fmt.Errorf("%s %s is encrypted and no passphrase was entered", kind, path)
+	}
+	return passphrase, nil
 }
 
 // checkKeystorePermissions refuses a keystore that group or other can read.
@@ -546,6 +606,7 @@ func (e Env) Redacted() map[string]string {
 		EnvAPICORSOrigins:        e.APICORSOrigins, // origins are public, not secrets
 		EnvLogFormat:             e.LogFormat,
 		EnvAllowInsecureKeystore: fmt.Sprintf("%t", e.AllowInsecureKeystore),
+		EnvKeystorePassphrase:    redact(e.KeystorePassphrase),
 		EnvAPIRateLimit:          orDefault(e.APIRateLimit, "(default)"),
 		EnvAPIRateBurst:          orDefault(e.APIRateBurst, "(default)"),
 		EnvAPITrustProxy:         orDefault(e.APITrustProxy, "false"),
