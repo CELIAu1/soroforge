@@ -384,6 +384,14 @@ Each webhook receives a POST request with a JSON payload (`alias`, `network`,
 in the `X-SoroForge-Signature` header (`sha256=<hex>`). Delivery is best-effort with
 a timeout: a failing webhook never fails the deploy. Dry runs never trigger webhooks.
 
+Transient failures (5xx, 429, and network errors) are retried up to four attempts
+in total, with exponential backoff (0.5s, 1s, 2s) and jitter. A `Retry-After` header on a
+429 or 503 is honoured, capped at 10s, and the whole delivery is bounded at 30s so
+an unreachable receiver cannot stall the deploy result. Other 4xx responses are
+not retried. Every retry carries the same body and signature, so receivers should
+treat deliveries as at-least-once and de-duplicate on `tx_hash`. The deploy result
+reports the number of attempts per webhook.
+
 **Contracts.** `wasm` paths resolve against the config file's directory, not your
 shell's working directory, so `soroforge deploy` behaves the same from anywhere.
 
