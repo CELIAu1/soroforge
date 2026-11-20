@@ -27,13 +27,6 @@ const (
 	testReadOnlyToken = "read-only-token-long-enough"
 )
 
-// Rotation tests need two distinct tokens and one that matches neither.
-const (
-	testTokenA = "test-token-rotation-old-0001"
-	testTokenB = "test-token-rotation-new-0002"
-	testTokenC = "test-token-rotation-nope-0003"
-)
-
 // fakeService records calls and returns canned results, so the handlers are
 // tested for what they do with HTTP rather than for lifecycle behaviour — that
 // is covered in the deploy package.

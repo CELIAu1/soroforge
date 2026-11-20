@@ -13,26 +13,13 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/soroworks/soroforge/internal/deploy"
 	"github.com/soroworks/soroforge/internal/stellar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// testHTTPClient is a no-op HTTP client used in unit tests.
-type testHTTPClient struct {
-	body   string
-	status int
-}
-
-func (c *testHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	return &http.Response{
-		StatusCode: c.status,
-		Body:       io.NopCloser(bytes.NewReader([]byte(c.body))),
-		Header:     http.Header{},
-	}, nil
-}
 
 func TestDeployNotifiesWebhookWithSignature(t *testing.T) {
 	var (
@@ -183,7 +170,10 @@ contracts:
     wasm: ./counter.wasm
 `, srv.URL)
 
-	h := newHarness(t, harnessOptions{configBody: cfg})
+	sender := deploy.NewHTTPWebhookSenderWithPolicy(nil, deploy.WebhookRetryPolicy{
+		Sleep: func(context.Context, time.Duration) error { return nil },
+	})
+	h := newHarness(t, harnessOptions{configBody: cfg, webhooks: sender})
 
 	result, err := h.svc.Deploy(context.Background(), deploy.DeployRequest{Alias: "counter"})
 	require.NoError(t, err, "a failing webhook must not fail the deploy")
@@ -191,6 +181,8 @@ contracts:
 	require.Len(t, result.Webhooks, 1)
 	assert.False(t, result.Webhooks[0].OK)
 	assert.Contains(t, result.Webhooks[0].Error, "502")
+	assert.Equal(t, deploy.DefaultWebhookMaxAttempts, result.Webhooks[0].Attempts,
+		"a persistent 502 is retried up to the attempt limit")
 
 	// Deploy is still tracked in the store
 	tracked, err := h.store.GetContract(context.Background(), "testnet", "counter")
